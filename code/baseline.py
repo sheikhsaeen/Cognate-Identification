@@ -99,7 +99,7 @@ y_test = [y for y in test_data['Category']]
 
 #%% TRAINING
 
-clf = MLPClassifier(hidden_layer_sizes=(100,100,100), max_iter=50, alpha=0.0001,
+clf = MLPClassifier(hidden_layer_sizes=(100,100,100), max_iter=500, alpha=0.0001,
                      solver='adam', verbose=10,  random_state=21, tol=0.000000001)
 
 print('Started training...')
