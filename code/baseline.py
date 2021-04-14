@@ -69,8 +69,8 @@ def extract_features(word1, word2):
     }
     return features
 
-TRAIN_PATH = '../data/train_data.csv'
-TEST_PATH = '../data/test_data.csv'
+TRAIN_PATH = '../data/cleaned_train_data.csv'
+TEST_PATH = '../data/cleaned_test_data.csv'
 
 #%% DATASET CONSTRUCTION
 
