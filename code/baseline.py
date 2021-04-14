@@ -12,14 +12,6 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_recall_fscore_support
 
-
-'''
-DATASET_PATH = '../data/CogNet-v2.0.tsv'
-SUPPORTED_LANGS_PATH = '../data/epitran_supported_langs.tsv'
-
-df = pd.read_csv(DATASET_PATH, sep='\t', header=1, error_bad_lines=False)
-langs = pd.read_csv(SUPPORTED_LANGS_PATH, sep='\t', header=0, error_bad_lines=False)
-'''
 def edit_distance(source, target, func=min):
     """Given a [source] and [target], return the [func] edit distance"""
     n = len(source)
@@ -69,7 +61,6 @@ def dice_coefficient(word1, word2):
     num = len([b for b in bigrams1 if b in bigrams2])
     return num/den
 
-
 def extract_features(word1, word2):
     features = {
         'lcsr': lcsr(word1, word2),
@@ -87,20 +78,24 @@ v = DictVectorizer(sparse=False)
 
 print('Reading training data...')
 train_data = pd.read_csv(TRAIN_PATH)
+
 print('Extracting features...')
 x_train = v.fit_transform([extract_features(str(word1), str(word2)) for word1, word2 in zip(train_data['word 1'], train_data['word 2'])])
-y_train = [y for y in train_data['Category']]
+y_train = [y for y in train_data['class']]
 
 print('Reading testing data...')
 test_data = pd.read_csv(TEST_PATH)
 print('Extracting features...')
 x_test = v.fit_transform([extract_features(str(word1), str(word2)) for word1, word2 in zip(test_data['word 1'], test_data['word 2'])])
-y_test = [y for y in test_data['Category']]
+y_test = [y for y in test_data['class']]
 
 #%% TRAINING
 
+'''
 clf = MLPClassifier(hidden_layer_sizes=(100,100,100), max_iter=500, alpha=0.0001,
-                     solver='adam', verbose=10,  random_state=21, tol=0.000000001)
+                     solver='adam', verbose=True,  random_state=21, tol=0.000000001)
+'''
+clf = MLPClassifier(hidden_layer_sizes=(200,200,200), solver='adam', max_iter=500, verbose=True, random_state=21)
 
 print('Started training...')
 clf.fit(x_train, y_train)
@@ -110,7 +105,7 @@ print('Making some predictions...')
 y_pred = clf.predict(x_test)
 
 print('-------------------------------------------------\nEvalutation\n\
-        -------------------------------------------------\n')
+-------------------------------------------------\n')
 
 print(f'Accuracy: {accuracy_score(y_test, y_pred)*100:.2f}%')
 
