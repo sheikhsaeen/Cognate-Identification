@@ -69,15 +69,15 @@ def extract_features(word1, word2):
     }
     return features
 
-TRAIN_PATH = '../data/cleaned_train_data.csv'
-TEST_PATH = '../data/cleaned_test_data.csv'
+TRAIN_PATH = '../data/cognet_train.csv'
+TEST_PATH = '../data/cognet_test.csv'
 
 #%% DATASET CONSTRUCTION
 
 v = DictVectorizer(sparse=False)
 
 print('Reading training data...')
-train_data = pd.read_csv(TRAIN_PATH)
+train_data = pd.read_csv(TRAIN_PATH).sample(n=600000)
 
 print('Extracting features...')
 x_train = v.fit_transform([extract_features(str(word1), str(word2)) for word1, word2 in zip(train_data['word 1'], train_data['word 2'])])
@@ -95,7 +95,7 @@ y_test = [y for y in test_data['class']]
 clf = MLPClassifier(hidden_layer_sizes=(100,100,100), max_iter=500, alpha=0.0001,
                      solver='adam', verbose=True,  random_state=21, tol=0.000000001)
 '''
-clf = MLPClassifier(hidden_layer_sizes=(200,200,200), solver='adam', max_iter=500, verbose=True, random_state=21)
+clf = MLPClassifier(hidden_layer_sizes=(200,200,200), solver='adam', max_iter=20, verbose=True, random_state=21)
 
 print('Started training...')
 clf.fit(x_train, y_train)

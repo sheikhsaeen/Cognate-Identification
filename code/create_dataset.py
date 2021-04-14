@@ -74,7 +74,11 @@ false_pairs = {}
 #%% data splitting
 
 # split the data 80/10/10
-# start with the true cognates
+# start with adding classes
+df['class'] = 1
+false_cognates['class'] = 0
+
+# split the true cognates
 train_true = df.sample(frac=0.8)
 df.drop(train_true.index, inplace=True)
 test_true = df.sample(frac=0.5)
@@ -82,17 +86,9 @@ dev_true = df.drop(test_true.index)
 
 # now do the false cognates
 train_false = false_cognates.sample(frac=0.8)
-false_cognates.drop(false_cognates.index, inplace=True)
+false_cognates.drop(train_false.index, inplace=True)
 test_false = false_cognates.sample(frac=0.5)
 dev_false = false_cognates.drop(test_false.index)
-
-# add the classes (true or false)
-train_true['class'] = 1
-test_true['class'] = 1
-dev_true['class'] = 1
-train_false['class'] = 0
-test_false['class'] = 0
-dev_false['class'] = 0
 
 # now concatenate them
 train = pd.concat([train_true, train_false])
