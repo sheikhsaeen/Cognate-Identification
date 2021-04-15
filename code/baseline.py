@@ -93,8 +93,10 @@ print('Extracting features...')
 x_train = v.fit_transform([extract_features(str(word1), str(word2)) for word1, word2 in zip(train_data['word 1'], train_data['word 2'])])
 y_train = [y for y in train_data['class']]
 
+#%% TESTING DATA
+
 print('Reading testing data...')
-test_data = [pd.read_csv(DEV_PATH), pd.read_csv(TEST_PATH)]
+test_data = pd.concat([pd.read_csv(DEV_PATH), pd.read_csv(TEST_PATH)])
 print('Extracting features...')
 x_test = v.fit_transform([extract_features(str(word1), str(word2)) for word1, word2 in zip(test_data['word 1'], test_data['word 2'])])
 y_test = [y for y in test_data['class']]
@@ -105,7 +107,7 @@ y_test = [y for y in test_data['class']]
 clf = MLPClassifier(hidden_layer_sizes=(100,100,100), max_iter=500, alpha=0.0001,
                      solver='adam', verbose=True,  random_state=21, tol=0.000000001)
 '''
-clf = MLPClassifier(hidden_layer_sizes=(100,100,100), max_iter=50, early_stopping=True,
+clf = MLPClassifier(hidden_layer_sizes=(8,8,8), max_iter=50, early_stopping=True,
                     validation_fraction=0.5,verbose=True, solver='adam',
                     random_state=10, learning_rate='adaptive')
 
