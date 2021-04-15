@@ -11,7 +11,11 @@ from sklearn.feature_extraction import DictVectorizer
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_recall_fscore_support
+from soundex import Soundex
+from jellyfish import nysiis
+from functools import lru_cache
 
+@lru_cache(maxsize = 128)
 def edit_distance(source, target, func=min):
     """Given a [source] and [target], return the [func] edit distance"""
     n = len(source)
@@ -33,12 +37,14 @@ def edit_distance(source, target, func=min):
             D[i, j] = func(distance) # final edit distance value
     return D[n, m]
 
+@lru_cache(maxsize = 128)
 def lcsr(word1, word2):
     """Given two words, return the least common subsequence ratio between them."""
     den = max(len(word1), len(word2))
     num =  int(den - edit_distance(word1, word2))
     return num/den
 
+@lru_cache(maxsize = 128)
 def PREFIX(word1, word2):
     """Given two words, get the longest common prefix coefficient"""
     den = max(len(word1), len(word2))
@@ -50,6 +56,7 @@ def PREFIX(word1, word2):
             break
     return num/den
 
+@lru_cache(maxsize = 128)
 def dice_coefficient(word1, word2):
     """Given two words, return their dice coefficent:
         number of shared character bigams / total number of bigrams in both words"""
@@ -65,26 +72,29 @@ def extract_features(word1, word2):
     features = {
         'lcsr': lcsr(word1, word2),
         'PREFIX': PREFIX(word1, word2),
-        'dice_coefficient': dice_coefficient(word1, word2)
+        'dice_coefficient': dice_coefficient(word1, word2),
+        'soundex': soundex.compare(word1, word2),
+        'nysiis': lcsr(nysiis(word1), nysiis(word2))
     }
     return features
 
 TRAIN_PATH = '../data/cognet_train.csv'
 TEST_PATH = '../data/cognet_test.csv'
+DEV_PATH = '../data/cognet_dev.csv'
 
 #%% DATASET CONSTRUCTION
 
 v = DictVectorizer(sparse=False)
+soundex = Soundex()
 
 print('Reading training data...')
-train_data = pd.read_csv(TRAIN_PATH).sample(n=600000)
-
+train_data = pd.read_csv(TRAIN_PATH)
 print('Extracting features...')
 x_train = v.fit_transform([extract_features(str(word1), str(word2)) for word1, word2 in zip(train_data['word 1'], train_data['word 2'])])
 y_train = [y for y in train_data['class']]
 
 print('Reading testing data...')
-test_data = pd.read_csv(TEST_PATH)
+test_data = [pd.read_csv(DEV_PATH), pd.read_csv(TEST_PATH)]
 print('Extracting features...')
 x_test = v.fit_transform([extract_features(str(word1), str(word2)) for word1, word2 in zip(test_data['word 1'], test_data['word 2'])])
 y_test = [y for y in test_data['class']]
@@ -95,7 +105,9 @@ y_test = [y for y in test_data['class']]
 clf = MLPClassifier(hidden_layer_sizes=(100,100,100), max_iter=500, alpha=0.0001,
                      solver='adam', verbose=True,  random_state=21, tol=0.000000001)
 '''
-clf = MLPClassifier(hidden_layer_sizes=(200,200,200), solver='adam', max_iter=20, verbose=True, random_state=21)
+clf = MLPClassifier(hidden_layer_sizes=(100,100,100), max_iter=50, early_stopping=True,
+                    validation_fraction=0.5,verbose=True, solver='adam',
+                    random_state=10, learning_rate='adaptive')
 
 print('Started training...')
 clf.fit(x_train, y_train)
