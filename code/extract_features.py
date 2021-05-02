@@ -3,6 +3,7 @@
 Created on Thu Apr 15 15:51:57 2021
 
 @author: Christian Konstantinov
+@author: Moeez Sheikh
 """
 import numpy as np
 import pandas as pd
@@ -10,8 +11,18 @@ from sklearn.feature_extraction import DictVectorizer
 from soundex import Soundex
 from jellyfish import nysiis
 from functools import lru_cache
+import epitran
+import pickle
+from collections import defaultdict
 
-@lru_cache(maxsize = 128)
+TRAIN_PATH = '../data/cognet_train.csv'
+TEST_PATH = '../data/cognet_test.csv'
+DEV_PATH = '../data/cognet_dev.csv'
+DATA_PATH = '../data/extracted_features.npy'
+SUPPORTED_LANGS_PATH = '../data/cognet_supported_langs.tsv'
+IPA_ENCODING_PATH = '../data/ipa_encodings.pickle'
+
+@lru_cache(maxsize=128)
 def edit_distance(source, target, func=min):
     """Given a [source] and [target], return the [func] edit distance"""
     n = len(source)
@@ -33,14 +44,14 @@ def edit_distance(source, target, func=min):
             D[i, j] = func(distance) # final edit distance value
     return D[n, m]
 
-@lru_cache(maxsize = 128)
+@lru_cache(maxsize=128)
 def lcsr(word1, word2):
     """Given two words, return the least common subsequence ratio between them."""
     den = max(len(word1), len(word2))
     num =  int(den - edit_distance(word1, word2))
     return num/den
 
-@lru_cache(maxsize = 128)
+@lru_cache(maxsize=128)
 def PREFIX(word1, word2):
     """Given two words, get the longest common prefix coefficient"""
     den = max(len(word1), len(word2))
@@ -52,7 +63,7 @@ def PREFIX(word1, word2):
             break
     return num/den
 
-@lru_cache(maxsize = 128)
+@lru_cache(maxsize=128)
 def dice_coefficient(word1, word2):
     """Given two words, return their dice coefficent:
         number of shared character bigams / total number of bigrams in both words"""
@@ -64,42 +75,124 @@ def dice_coefficient(word1, word2):
     num = len([b for b in bigrams1 if b in bigrams2])
     return num/den
 
-def extract_features(word1, word2):
+@lru_cache(maxsize=128)
+def get_translit(lang, word):
+    trans = epitran_dict[lang].transliterate(word, ligatures=True)
+    if trans: return trans
+    return word
+
+@lru_cache(maxsize=128)
+def manhattan_distance(vector1, vector2):
+    """given two ndarrays of the same shape, return their manhattan distance."""
+    return np.sum(np.abs(vector1 - vector2))
+
+@lru_cache(maxsize=128)
+def set_to_length(word, n):
+    if len(word) > n:
+        return clip(word, n)
+    if len(word) < n:
+        return pad_to_length(word, n)
+    return word
+
+@lru_cache(maxsize=128)
+def clip(word, n):
+    """clip a word to length n."""
+    return word[:n]
+
+@lru_cache(maxsize=128)
+def pad_to_length(word, n):
+    """Pad a word with n underscores."""
+    return word + ''.join(['_']*(n-len(word)))
+
+@lru_cache(maxsize=128)
+def pad(word1, word2):
+    """Pad the smaller word with underscores."""
+    l1 = len(word1)
+    l2 = len(word2)
+    if l1 == l2:
+        return word1, word2
+    if l1 > l2:
+        return word1, pad_to_length(word2, l1)
+    return pad_to_length(word1, l2), word2
+
+def get_phoneme_encodings(word_ipa, encodings):
+    result = []
+    for phoneme in word_ipa:
+        result.append(encodings[phoneme])
+    return np.array(result).T
+
+def create_epitran_dict():
+    """Return a dictionary of languages to Epitran Objects."""
+    codes = pd.read_csv(SUPPORTED_LANGS_PATH, sep='\t', header=0, error_bad_lines=False)['Code']
+    epitran_dict = {}
+    for code in codes:
+        if code[:3] in epitran_dict: continue
+        try:
+            epitran_dict[code[:3]] = epitran.Epitran(f'{code}')
+        except OSError:
+            continue
+    return epitran_dict
+
+def extract_features(lang1, word1, lang2, word2):
     features = {
         'lcsr': lcsr(word1, word2),
         'PREFIX': PREFIX(word1, word2),
         'dice_coefficient': dice_coefficient(word1, word2),
         'soundex': soundex.compare(word1, word2),
-        'nysiis': lcsr(nysiis(word1), nysiis(word2))
+        'nysiis': lcsr(nysiis(word1), nysiis(word2)),
+        'epitran': lcsr(get_translit(lang1, word1), get_translit(lang2, word2))
     }
     return features
 
-TRAIN_PATH = '../data/cognet_train.csv'
-TEST_PATH = '../data/cognet_test.csv'
-DEV_PATH = '../data/cognet_dev.csv'
-DATA_PATH = '../data/extracted_features.npy'
+def extract_features_phonetic_only(lang1, word1, lang2, word2):
+    tl1 = get_translit(lang1, word1)
+    tl2 = get_translit(lang2, word2)
+    pad1, pad2 = pad(tl1, tl2)
+    phonemes1 = np.array([ipa[c] for c in pad1])
+    phonemes2 = np.array([ipa[c] for c in pad2])
+    features = {
+        'lcsr': lcsr(tl1, tl2),
+        'PREFIX': PREFIX(tl1, tl2),
+        'dice_coefficient': dice_coefficient(tl1, tl2),
+        'manhattan_distance': manhattan_distance(phonemes1, phonemes2)
+    }
+    return features
 
-#%% FEATURE EXTRACTION
+#%% Open some things
 
 v = DictVectorizer(sparse=False)
 soundex = Soundex()
+epitran_dict = create_epitran_dict()
+with open(IPA_ENCODING_PATH, 'rb') as f:
+    ipa = pickle.load(f)
+ipa = defaultdict(lambda: np.array([0.]*24), ipa)
 
-print('Reading training data...')
-train_data = pd.read_csv(TRAIN_PATH)
-print('Extracting features...')
-x_train = v.fit_transform([extract_features(str(word1), str(word2)) for word1, word2 in zip(train_data['word 1'], train_data['word 2'])])
-y_train = [y for y in train_data['class']]
+#%% FEATURE EXTRACTION
+if __name__ == '__main__':
+    print('Reading training data...')
+    train_data = pd.read_csv(TRAIN_PATH)
+    print('Extracting features...')
+    x_train = v.fit_transform([
+        extract_features(str(lang1), str(word1), str(lang2), str(word2))\
+            for lang1, word1, lang2, word2 in\
+                zip(train_data['lang 1'], train_data['word 1'], train_data['lang 2'], train_data['word 2'])
+                ])
+    y_train = [y for y in train_data['class']]
 
-print('Reading testing data...')
-test_data = pd.concat([pd.read_csv(DEV_PATH), pd.read_csv(TEST_PATH)])
-print('Extracting features...')
-x_test = v.fit_transform([extract_features(str(word1), str(word2)) for word1, word2 in zip(test_data['word 1'], test_data['word 2'])])
-y_test = [y for y in test_data['class']]
+    print('Reading testing data...')
+    test_data = pd.concat([pd.read_csv(DEV_PATH), pd.read_csv(TEST_PATH)])
+    print('Extracting features...')
+    x_test = v.fit_transform([
+        extract_features(str(lang1), str(word1), str(lang2), str(word2))\
+            for lang1, word1, lang2, word2 in\
+                zip(test_data['lang 1'], test_data['word 1'], test_data['lang 2'], test_data['word 2'])
+                ])
+    y_test = [y for y in test_data['class']]
 
-#%% SAVE EXTRACTED FEATURES
+    #%% SAVE EXTRACTED FEATURES
 
-with open(DATA_PATH, 'wb+', encoding='utf-8') as f:
-    np.save(f, x_train)
-    np.save(f, y_train)
-    np.save(f, x_test)
-    np.save(f, y_test)
+    with open(DATA_PATH, 'wb+') as f:
+        np.save(f, x_train)
+        np.save(f, y_train)
+        np.save(f, x_test)
+        np.save(f, y_test)

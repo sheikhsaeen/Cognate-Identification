@@ -5,6 +5,12 @@ Created on Mon Apr 12 18:01:44 2021
 @author: Christian Konstantinov
 """
 import pandas as pd
+import sys
+
+try:
+    translit = sys.argv[1]
+except IndexError:
+    translit = False
 
 DATASET_PATH = '../data/CogNet-v2.0.tsv'
 SUPPORTED_LANGS_PATH = '../data/epitran_supported_langs.tsv'
@@ -23,12 +29,13 @@ with open(DATASET_PATH, encoding='utf-8') as data:
         row = f(line)
         if not (row[1] in langs and row[3] in langs):
             continue
-        # replace word 1 with translit 1 if the latter exists.
-        if row[6]:
-                row[2] = row[6]
-        # replace word 2 with translit 2 if the latter exists.
-        if row[7]:
-                row[4] = row[7]
+        if translit:
+            # replace word 1 with translit 1 if the latter exists.
+            if row[6]:
+                    row[2] = row[6]
+            # replace word 2 with translit 2 if the latter exists.
+            if row[7]:
+                    row[4] = row[7]
         d.append(row)
     df = pd.DataFrame.from_records(d, columns=f(header))
     d = []
@@ -97,9 +104,14 @@ dev = pd.concat([dev_true, dev_false])
 
 #%% file writing
 
-TRAIN_FILE = '../data/cognet_train.csv'
-TEST_FILE = '../data/cognet_test.csv'
-DEV_FILE = '../data/cognet_dev.csv'
+if translit:
+    TRAIN_FILE = '../data/cognet_train.csv'
+    TEST_FILE = '../data/cognet_test.csv'
+    DEV_FILE = '../data/cognet_dev.csv'
+else:
+    TRAIN_FILE = '../data/cognet_train_no_translit.csv'
+    TEST_FILE = '../data/cognet_test_no_translit.csv'
+    DEV_FILE = '../data/cognet_dev_no_translit.csv'
 
 with open(TRAIN_FILE, 'w+', encoding='utf-8', newline='') as f:
     train.to_csv(path_or_buf=f)

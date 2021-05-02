@@ -5,6 +5,7 @@ Created on Mon Mar 15 21:21:15 2021
 @author: Christian Konstantinov
 """
 import numpy as np
+from sklearn.utils import shuffle
 from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_recall_fscore_support
@@ -18,6 +19,11 @@ with open(DATA_PATH, 'rb') as f:
     y_train = np.load(f, allow_pickle=True)
     x_test = np.load(f, allow_pickle=True)
     y_test = np.load(f, allow_pickle=True)
+
+#%% SHUFFLE IT UP, HOMIE
+
+x_train, y_train = shuffle(x_train, y_train)
+x_test, y_test = shuffle(x_test, y_test)
 
 #%% TRAINING AND EVALUATION
 
