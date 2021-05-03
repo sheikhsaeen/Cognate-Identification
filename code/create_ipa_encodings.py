@@ -4,7 +4,6 @@ Created on Sat May  1 17:55:22 2021
 
 @author: Christian Konstantinov
 """
-
 import pandas as pd
 import pickle
 

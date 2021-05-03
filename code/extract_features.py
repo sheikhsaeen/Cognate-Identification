@@ -15,13 +15,6 @@ import epitran
 import pickle
 from collections import defaultdict
 
-TRAIN_PATH = '../data/cognet_train.csv'
-TEST_PATH = '../data/cognet_test.csv'
-DEV_PATH = '../data/cognet_dev.csv'
-DATA_PATH = '../data/extracted_features.npy'
-SUPPORTED_LANGS_PATH = '../data/cognet_supported_langs.tsv'
-IPA_ENCODING_PATH = '../data/ipa_encodings.pickle'
-
 @lru_cache(maxsize=128)
 def edit_distance(source, target, func=min):
     """Given a [source] and [target], return the [func] edit distance"""
@@ -88,6 +81,7 @@ def manhattan_distance(vector1, vector2):
 
 @lru_cache(maxsize=128)
 def set_to_length(word, n):
+    """set a word to length n by either underscore padding or clipping."""
     if len(word) > n:
         return clip(word, n)
     if len(word) < n:
@@ -158,14 +152,32 @@ def extract_features_phonetic_only(lang1, word1, lang2, word2):
     }
     return features
 
-#%% Open some things
+def extract_phoneme_encodings(lang1, word1, lang2, word2, n=10):
+    tl1 = get_translit(lang1, word1)
+    tl2 = get_translit(lang2, word2)
+    pad1 = set_to_length(tl1, n)
+    pad2 = set_to_length(tl2, n)
+    phonemes1 = np.array([ipa[c] for c in pad1])
+    phonemes2 = np.array([ipa[c] for c in pad2])
+    features = {'word 1 encoding': phonemes1,
+                'word 2 encoding': phonemes2}
+    return features
 
-v = DictVectorizer(sparse=False)
-soundex = Soundex()
-epitran_dict = create_epitran_dict()
-with open(IPA_ENCODING_PATH, 'rb') as f:
-    ipa = pickle.load(f)
-ipa = defaultdict(lambda: np.array([0.]*24), ipa)
+#%% Open some things
+if __name__ == '__main__':
+    TRAIN_PATH = '../data/cognet_train.csv'
+    TEST_PATH = '../data/cognet_test.csv'
+    DEV_PATH = '../data/cognet_dev.csv'
+    DATA_PATH = '../data/extracted_features.npy'
+    SUPPORTED_LANGS_PATH = '../data/cognet_supported_langs.tsv'
+    IPA_ENCODING_PATH = '../data/ipa_encodings.pickle'
+
+    v = DictVectorizer(sparse=False)
+    soundex = Soundex()
+    epitran_dict = create_epitran_dict()
+    with open(IPA_ENCODING_PATH, 'rb') as f:
+        ipa = pickle.load(f)
+    ipa = defaultdict(lambda: np.array([0.]*24), ipa)
 
 #%% FEATURE EXTRACTION
 if __name__ == '__main__':
@@ -175,7 +187,7 @@ if __name__ == '__main__':
     x_train = v.fit_transform([
         extract_features(str(lang1), str(word1), str(lang2), str(word2))\
             for lang1, word1, lang2, word2 in\
-                zip(train_data['lang 1'], train_data['word 1'], train_data['lang 2'], train_data['word 2'])
+                zip(train_data['lang 1'], train_data['translit 1'], train_data['lang 2'], train_data['translit 2'])
                 ])
     y_train = [y for y in train_data['class']]
 
@@ -185,14 +197,33 @@ if __name__ == '__main__':
     x_test = v.fit_transform([
         extract_features(str(lang1), str(word1), str(lang2), str(word2))\
             for lang1, word1, lang2, word2 in\
-                zip(test_data['lang 1'], test_data['word 1'], test_data['lang 2'], test_data['word 2'])
+                zip(test_data['lang 1'], test_data['translit 1'], test_data['lang 2'], test_data['translit 2'])
                 ])
     y_test = [y for y in test_data['class']]
 
-    #%% SAVE EXTRACTED FEATURES
+#%% PHONEMES
+if __name__ == '__main__':
+    print('Extracting phonemes...')
+    x_train_phonemes = np.array([
+        extract_phoneme_encodings(str(lang1), str(word1), str(lang2), str(word2))\
+            for lang1, word1, lang2, word2 in\
+                zip(train_data['lang 1'], train_data['word 1'], train_data['lang 2'], train_data['word 2'])
+                ])
 
+    x_test_phonemes = np.array([
+        extract_phoneme_encodings(str(lang1), str(word1), str(lang2), str(word2))\
+            for lang1, word1, lang2, word2 in\
+                zip(test_data['lang 1'], test_data['word 1'], test_data['lang 2'], test_data['word 2'])
+                ])
+
+    print('done!')
+
+#%% SAVE EXTRACTED FEATURES
+if __name__ == '__main__':
     with open(DATA_PATH, 'wb+') as f:
         np.save(f, x_train)
+        np.save(f, x_train_phonemes)
         np.save(f, y_train)
         np.save(f, x_test)
+        np.save(f, x_test_phonemes)
         np.save(f, y_test)
