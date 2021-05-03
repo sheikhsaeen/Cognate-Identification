@@ -140,5 +140,6 @@ dmypy.json
 
 # datasets
 *.tsv
-!epitran_supported_langs.tsv
+!cognet_supported_langs.tsv
 *.csv
+*.npy
