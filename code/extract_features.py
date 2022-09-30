@@ -159,71 +159,76 @@ def extract_phoneme_encodings(lang1, word1, lang2, word2, n=10):
     pad2 = set_to_length(tl2, n)
     phonemes1 = np.array([ipa[c] for c in pad1])
     phonemes2 = np.array([ipa[c] for c in pad2])
-    features = {'word 1 encoding': phonemes1,
-                'word 2 encoding': phonemes2}
-    return features
+    feature_vector = np.stack((phonemes1, phonemes2))
+    return feature_vector
 
 #%% Open some things
-if __name__ == '__main__':
-    TRAIN_PATH = '../data/cognet_train.csv'
-    TEST_PATH = '../data/cognet_test.csv'
-    DEV_PATH = '../data/cognet_dev.csv'
-    DATA_PATH = '../data/extracted_features.npy'
-    SUPPORTED_LANGS_PATH = '../data/cognet_supported_langs.tsv'
-    IPA_ENCODING_PATH = '../data/ipa_encodings.pickle'
 
-    v = DictVectorizer(sparse=False)
-    soundex = Soundex()
-    epitran_dict = create_epitran_dict()
-    with open(IPA_ENCODING_PATH, 'rb') as f:
-        ipa = pickle.load(f)
-    ipa = defaultdict(lambda: np.array([0.]*24), ipa)
+TRAIN_PATH = '../data/cognet_train.csv'
+TEST_PATH = '../data/cognet_test.csv'
+DEV_PATH = '../data/cognet_dev.csv'
+DATA_PATH = '../data/extracted_features.npy'
+SUPPORTED_LANGS_PATH = '../data/cognet_supported_langs.tsv'
+IPA_ENCODING_PATH = '../data/ipa_encodings.pickle'
+
+v = DictVectorizer(sparse=False)
+soundex = Soundex()
+epitran_dict = create_epitran_dict()
+with open(IPA_ENCODING_PATH, 'rb') as f:
+    ipa = pickle.load(f)
+k = len(list(ipa.values())[0]) # always 24
+ipa = defaultdict(lambda: np.array([0.]*k), ipa)
 
 #%% FEATURE EXTRACTION
-if __name__ == '__main__':
-    print('Reading training data...')
-    train_data = pd.read_csv(TRAIN_PATH)
-    print('Extracting features...')
-    x_train = v.fit_transform([
-        extract_features(str(lang1), str(word1), str(lang2), str(word2))\
-            for lang1, word1, lang2, word2 in\
-                zip(train_data['lang 1'], train_data['translit 1'], train_data['lang 2'], train_data['translit 2'])
-                ])
-    y_train = [y for y in train_data['class']]
 
-    print('Reading testing data...')
-    test_data = pd.concat([pd.read_csv(DEV_PATH), pd.read_csv(TEST_PATH)])
-    print('Extracting features...')
-    x_test = v.fit_transform([
-        extract_features(str(lang1), str(word1), str(lang2), str(word2))\
-            for lang1, word1, lang2, word2 in\
-                zip(test_data['lang 1'], test_data['translit 1'], test_data['lang 2'], test_data['translit 2'])
-                ])
-    y_test = [y for y in test_data['class']]
+print('Reading training data...')
+train_data = pd.read_csv(TRAIN_PATH)
+print('Extracting features...')
+x_train = v.fit_transform([
+    extract_features(str(lang1), str(word1), str(lang2), str(word2))\
+        for lang1, word1, lang2, word2 in\
+            zip(train_data['lang 1'], train_data['translit 1'], train_data['lang 2'], train_data['translit 2'])
+            ])
+y_train = [y for y in train_data['class']]
+
+print('Reading testing data...')
+test_data = pd.concat([pd.read_csv(DEV_PATH), pd.read_csv(TEST_PATH)])
+print('Extracting features...')
+x_test = v.fit_transform([
+    extract_features(str(lang1), str(word1), str(lang2), str(word2))\
+        for lang1, word1, lang2, word2 in\
+            zip(test_data['lang 1'], test_data['translit 1'], test_data['lang 2'], test_data['translit 2'])
+            ])
+y_test = [y for y in test_data['class']]
 
 #%% PHONEMES
-if __name__ == '__main__':
-    print('Extracting phonemes...')
-    x_train_phonemes = np.array([
-        extract_phoneme_encodings(str(lang1), str(word1), str(lang2), str(word2))\
-            for lang1, word1, lang2, word2 in\
-                zip(train_data['lang 1'], train_data['word 1'], train_data['lang 2'], train_data['word 2'])
-                ])
 
-    x_test_phonemes = np.array([
-        extract_phoneme_encodings(str(lang1), str(word1), str(lang2), str(word2))\
-            for lang1, word1, lang2, word2 in\
-                zip(test_data['lang 1'], test_data['word 1'], test_data['lang 2'], test_data['word 2'])
-                ])
+# phoneme vector shape = (|C|, 2, n, k)
+# where |C| is the number of cognate pairs in the dataset
+# and n is the number of characters for each word, which is set to 10
+# and k is the length of the phoneme vector which is always 24
 
-    print('done!')
+print('Extracting phonemes...')
+x_train_phonemes = np.array([
+    extract_phoneme_encodings(str(lang1), str(word1), str(lang2), str(word2))\
+        for lang1, word1, lang2, word2 in\
+            zip(train_data['lang 1'], train_data['word 1'], train_data['lang 2'], train_data['word 2'])
+            ]).transpose((0,1,3,2))
+
+x_test_phonemes = np.array([
+    extract_phoneme_encodings(str(lang1), str(word1), str(lang2), str(word2))\
+        for lang1, word1, lang2, word2 in\
+            zip(test_data['lang 1'], test_data['word 1'], test_data['lang 2'], test_data['word 2'])
+            ]).transpose((0,1,3,2))
+
+print('done!')
 
 #%% SAVE EXTRACTED FEATURES
-if __name__ == '__main__':
-    with open(DATA_PATH, 'wb+') as f:
-        np.save(f, x_train)
-        np.save(f, x_train_phonemes)
-        np.save(f, y_train)
-        np.save(f, x_test)
-        np.save(f, x_test_phonemes)
-        np.save(f, y_test)
+
+with open(DATA_PATH, 'wb+') as f:
+    np.save(f, x_train)
+    np.save(f, x_train_phonemes)
+    np.save(f, y_train)
+    np.save(f, x_test)
+    np.save(f, x_test_phonemes)
+    np.save(f, y_test)

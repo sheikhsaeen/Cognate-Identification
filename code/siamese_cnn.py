@@ -8,11 +8,13 @@ Created on Sat May  1 22:02:47 2021
 import torch
 from torch import nn
 import torch.optim as optim
-import extract_features as ef
 import numpy as np
 import pickle
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_recall_fscore_support
+
+# TODO: Make custom dataset class
+# TODO: Implement batching
 
 #%% Pleb Check
 
@@ -21,7 +23,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #%% The model
 
 class SiameseCNN(nn.Module):
-    def __init__(self, h, m, k, n, hidden_size):
+    def __init__(self, h, m, k, n):
         super().__init__()
         self.h = h # filter length
         self.m = m # filter width
@@ -32,45 +34,44 @@ class SiameseCNN(nn.Module):
         self.stride = 2
 
         self.conv_1 = nn.Conv2d(in_channels=1, out_channels=self.p*self.q, kernel_size=(h, m))
-        self.conv_2 = nn.Conv2d(in_channels=self.p*self.q, out_channels=self.p*self.q, kernel_size=(h, m))
-        self.conv_3 = nn.Conv2d(in_channels=self.p*self.q, out_channels=self.p*self.q, kernel_size=(h, m))
-        self.maxpool = nn.Maxpool2d((self.p, self.q), stride=self.stride)
-        self.manhattan = ef.manhattan_distance
+        self.conv_2 = nn.Conv2d(in_channels=self.p*self.q, out_channels=self.p*self.q, kernel_size=(1, m))
+        self.maxpool = nn.MaxPool2d((self.p, self.q), stride=self.stride)
+        self.relu = nn.ReLU()
+        self.drop_1 = nn.Dropout(p=0.1)
+        self.siamese = nn.Sequential(self.conv_1, self.relu, self.drop_1,
+                                     self.conv_2, self.relu, self.drop_1)
 
-        self.input_layer = nn.Linear(7, hidden_size)
-        self.hidden_1 = nn.Linear(hidden_size, hidden_size)
-        self.hidden_2 = nn.Linear(hidden_size, hidden_size)
-        self.hidden_3 = nn.Linear(hidden_size, hidden_size)
+        self.hidden_1 = nn.Linear(7, 64)
+        self.hidden_2 = nn.Linear(64, 32)
+        self.output = nn.Linear(32, 1)
+        self.drop_2 = nn.Dropout(p=0.5)
 
-        self.output = nn.Linear(hidden_size, 1)
-
+        self.fully_connected = nn.Sequential(self.hidden_1, self.relu, self.drop_2,
+                                             self.hidden_2, self.relu, self.drop_2,
+                                             self.output, self.relu, self.drop_2)
         self.sigmoid = nn.Sigmoid()
-        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
 
-        feature, phoneme = x
+        distances, phonemes = x
+        phonemes_1 = phonemes[0].unsqueeze(0).unsqueeze(0)
+        phonemes_2 = phonemes[1].unsqueeze(0).unsqueeze(0)
 
         # Siamese CNN
-        x = self.conv_1(x)
-        x = self.conv_2(x)
-        x = self.conv_3(x)
-        x = self.maxpool(x)
-        x = self.sigmoid(x)
-        x = self.manhattan()
+        phonemes_1 = self.siamese(phonemes_1)
+        phonemes_2 = self.siamese(phonemes_2)
+        phonetic_distance = self.manhattan(phonemes_1, phonemes_2)
+
+        x = torch.cat((distances, phonetic_distance.reshape(1)))
 
         # Fully Connected
-        x = self.input_layer(x)
+        x = self.fully_connected(x)
         x = self.sigmoid(x)
-        x = self.hidden_1(x)
-        x = self.sigmoid(x)
-        x = self.hidden_2(x)
-        x = self.sigmoid(x)
-        x = self.hidden_3(x)
-        x = self.sigmoid(x)
-        x = self.output(x)
-        x = self.softmax(x)
         return x
+
+    def manhattan(self, tensor_1, tensor_2):
+        """Given 2 tensors, return their manhattan distance."""
+        return torch.sum(torch.abs(tensor_1 - tensor_2))
 
 #%% Load the data
 
@@ -94,7 +95,7 @@ test_data = zip(zip(x_test, x_test_phonemes), y_test)
 #%% Hyperparameters
 
 n = 10
-k = len(list(ipa.values())[0])
+k = len(list(ipa.values())[0]) # 24
 # h <= k
 h = k
 # m < n
@@ -107,7 +108,7 @@ epochs = 10
 #%% Initialization
 
 model = SiameseCNN(h, m, k, n).to(device)
-loss_function = nn.CrossEntropyLoss()
+loss_function = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=lr)
 
 #%% functions
@@ -124,12 +125,12 @@ def evaluate(y_test, y_pred):
 
 def train(model, train_data, optimizer, loss_function):
     for epoch in range(epochs):
-        print(f'Starting epcoh {epoch}...')
+        print(f'Starting epoch {epoch}...')
         for (feature_vec, phoneme_vec), target in train_data:
             model.zero_grad()
-            x = (torch.FloatTensor(torch.tensor(feature_vec).float().to(device)), torch.FloatTensor(torch.tensor(phoneme_vec).float().to(device)))
+            x = (torch.FloatTensor(torch.tensor(feature_vec).float()).to(device), torch.FloatTensor(torch.tensor(phoneme_vec).float()).to(device))
             output = model(x)
-            loss = loss_function(output, torch.FloatTensor(target.float()).to(device))
+            loss = loss_function(output, torch.FloatTensor(torch.tensor(target).reshape(1).float()).to(device))
             loss.backward()
             optimizer.step()
 
@@ -148,6 +149,6 @@ def test(model, test_data):
     return targets, predictions
 
 #%% Run
-
-train(model, train_data, optimizer, loss_function)
-test(model, test_data)
+if __name__ == '__main__':
+    train(model, train_data, optimizer, loss_function)
+    test(model, test_data)

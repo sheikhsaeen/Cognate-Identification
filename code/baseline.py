@@ -16,8 +16,10 @@ DATA_PATH = '../data/extracted_features.npy'
 
 with open(DATA_PATH, 'rb') as f:
     x_train = np.load(f, allow_pickle=True)
+    x_train_phonemes = np.load(f, allow_pickle=True)
     y_train = np.load(f, allow_pickle=True)
     x_test = np.load(f, allow_pickle=True)
+    x_test_phonemes = np.load(f, allow_pickle=True)
     y_test = np.load(f, allow_pickle=True)
 
 #%% SHUFFLE IT UP, HOMIE
