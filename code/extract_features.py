@@ -5,15 +5,21 @@ Created on Thu Apr 15 15:51:57 2021
 @author: Christian Konstantinov
 @author: Moeez Sheikh
 """
+#%%
+import pickle
+
+from collections import defaultdict
+from functools import lru_cache
+
 import numpy as np
 import pandas as pd
+
 from sklearn.feature_extraction import DictVectorizer
-from soundex import Soundex
-from jellyfish import nysiis
-from functools import lru_cache
+
 import epitran
-import pickle
-from collections import defaultdict
+
+from jellyfish import nysiis
+from soundex import Soundex
 
 @lru_cache(maxsize=128)
 def edit_distance(source, target, func=min):
@@ -30,10 +36,11 @@ def edit_distance(source, target, func=min):
 
     for i in range(1, n+1):
         for j in range(1, m+1):
-            distance = []
-            distance.append(D[i-1, j] + del_cost)
-            distance.append(D[i, j-1] + ins_cost)
-            distance.append(D[i-1, j-1] + (0 if source[i-1] == target[j-1] else sub_cost))
+            distance = (
+                D[i-1, j] + del_cost,
+                D[i, j-1] + ins_cost,
+                D[i-1, j-1] + (0 if source[i-1] == target[j-1] else sub_cost)
+            )
             D[i, j] = func(distance) # final edit distance value
     return D[n, m]
 
@@ -117,7 +124,7 @@ def get_phoneme_encodings(word_ipa, encodings):
 
 def create_epitran_dict():
     """Return a dictionary of languages to Epitran Objects."""
-    codes = pd.read_csv(SUPPORTED_LANGS_PATH, sep='\t', header=0, error_bad_lines=False)['Code']
+    codes = pd.read_csv(SUPPORTED_LANGS_PATH, sep='\t', header=0, on_bad_lines='skip')['Code']
     epitran_dict = {}
     for code in codes:
         if code[:3] in epitran_dict: continue
@@ -185,9 +192,9 @@ print('Reading training data...')
 train_data = pd.read_csv(TRAIN_PATH)
 print('Extracting features...')
 x_train = v.fit_transform([
-    extract_features(str(lang1), str(word1), str(lang2), str(word2))\
-        for lang1, word1, lang2, word2 in\
-            zip(train_data['lang 1'], train_data['translit 1'], train_data['lang 2'], train_data['translit 2'])
+    extract_features(str(lang1), str(word1), str(lang2), str(word2))
+        for lang1, word1, lang2, word2 in
+            zip(train_data['lang_1'], train_data['translit_1'], train_data['lang_2'], train_data['translit_2'])
             ])
 y_train = [y for y in train_data['class']]
 
@@ -195,9 +202,9 @@ print('Reading testing data...')
 test_data = pd.concat([pd.read_csv(DEV_PATH), pd.read_csv(TEST_PATH)])
 print('Extracting features...')
 x_test = v.fit_transform([
-    extract_features(str(lang1), str(word1), str(lang2), str(word2))\
-        for lang1, word1, lang2, word2 in\
-            zip(test_data['lang 1'], test_data['translit 1'], test_data['lang 2'], test_data['translit 2'])
+    extract_features(str(lang1), str(word1), str(lang2), str(word2))
+        for lang1, word1, lang2, word2 in
+            zip(test_data['lang_1'], test_data['translit_1'], test_data['lang_2'], test_data['translit_2'])
             ])
 y_test = [y for y in test_data['class']]
 
@@ -210,15 +217,15 @@ y_test = [y for y in test_data['class']]
 
 print('Extracting phonemes...')
 x_train_phonemes = np.array([
-    extract_phoneme_encodings(str(lang1), str(word1), str(lang2), str(word2))\
-        for lang1, word1, lang2, word2 in\
-            zip(train_data['lang 1'], train_data['word 1'], train_data['lang 2'], train_data['word 2'])
+    extract_phoneme_encodings(str(lang1), str(word1), str(lang2), str(word2))
+        for lang1, word1, lang2, word2 in
+            zip(train_data['lang_1'], train_data['word_1'], train_data['lang_2'], train_data['word_2'])
             ]).transpose((0,1,3,2))
 
 x_test_phonemes = np.array([
-    extract_phoneme_encodings(str(lang1), str(word1), str(lang2), str(word2))\
-        for lang1, word1, lang2, word2 in\
-            zip(test_data['lang 1'], test_data['word 1'], test_data['lang 2'], test_data['word 2'])
+    extract_phoneme_encodings(str(lang1), str(word1), str(lang2), str(word2))
+        for lang1, word1, lang2, word2 in
+            zip(test_data['lang_1'], test_data['word_1'], test_data['lang_2'], test_data['word_2'])
             ]).transpose((0,1,3,2))
 
 print('done!')

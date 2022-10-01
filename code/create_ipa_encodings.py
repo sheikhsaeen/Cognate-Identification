@@ -20,11 +20,7 @@ def convert_value(x):
 
 def convert_data_frame(df):
     """Convert the data read in from panphon's ipa encodings to floating point."""
-    for i, row in df.iterrows():
-        for j, x in row.iteritems():
-            if j == 0: continue
-            df.at[i, j] = convert_value(x)
-    return df
+    return df.applymap(convert_value)
 
 if __name__ == '__main__':
     IPA_DATA_PATH = '../data/ipa_all.csv'
