@@ -1,7 +1,15 @@
-<h1>Introduction</h1>
+# Cognate Identification
 
-In this project, we explore various Natural Language Processing (NLP) concepts for identifying cognates across multiple languages. Cognates are defined as words that share a common language ancestor. In this paper, we will discuss our findings and the approach we took to create a model that accurately identifies cognates
+This project explores various NLP approaches for identifying cognates across languages. The repository contains scripts for feature extraction, baseline models, and a Siamese CNN prototype.
 
-<h1>Goal</h1>
+## Goal
+Our aim is to experiment with different methods for cognate detection and evaluate their performance. A reliable classifier can help linguists trace how languages evolved, discover word origins and preserve endangered languages.
 
-Our aim in this project was to explore various methods of identifying cognates and synthesize our findings to create a model that would perform well and produce accurate results. A classifier that identifies cognates accurately can become a part of a larger epistemology model. Such a model can help us in identifying how languages changed over the millenniums. It can also help us in finding the origin of words and preserving endangered languages.
+## Synthetic Test Data
+The repository does not ship the original CogNet dataset. To quickly test the code, you can generate synthetic data using `generate_synthetic_cognet.py`:
+
+```bash
+python generate_synthetic_cognet.py
+```
+
+This script creates `cognet_train.csv`, `cognet_test.csv` and `cognet_dev.csv` under the `data/` directory. The files contain randomly generated cognate and non-cognate pairs for a few languages so you can exercise the feature extraction and model scripts.
